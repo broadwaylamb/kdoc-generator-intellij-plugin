@@ -18,6 +18,11 @@
     <enterHandlerDelegate implementation="siosio.kodkod.EnterAfterKDocGenHandler" order="first" />
   </extensions>
 
+  <extensions defaultExtensionNs="org.jetbrains.kotlin">
+    <supportsKotlinK2Mode/>
+    <supportsKotlinPluginMode supportsK2="true" supportsK1="true"/>
+  </extensions>
+
   <actions>
     <!-- Add your actions here -->
   </actions>

@@ -1,25 +1,27 @@
 package siosio.kodkod
 
-import com.intellij.psi.PsiNameIdentifierOwner
-import org.jetbrains.kotlin.nj2k.postProcessing.type
+import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
+import org.jetbrains.kotlin.analysis.api.analyze
+import org.jetbrains.kotlin.analysis.api.symbols.*
+import org.jetbrains.kotlin.analysis.api.symbols.markers.KaNamedSymbol
 import org.jetbrains.kotlin.psi.KtClass
 import org.jetbrains.kotlin.psi.KtNamedFunction
-import org.jetbrains.kotlin.types.typeUtil.isUnit
 
 interface KDocGenerator {
-
-    companion object {
-        const val LF = "\n"
-    }
-
     fun generate(): String
-
-    fun toParamsKdoc(keyword: String = "@param", params: List<PsiNameIdentifierOwner>): String =
-            params.map { "$keyword ${it.name}" }
-                    .joinToString(LF, transform = { "* $it" })
-
-    fun StringBuilder.appendLine(text: String): StringBuilder = append(text).append(LF)
 }
+
+private fun toParamsKdoc(keyword: String = "@param", params: List<KaNamedSymbol>): String =
+    params.map { "$keyword ${it.name}" }
+        .joinToString("\n", transform = { "* $it" })
+
+private val KaDeclarationSymbol.safeTypeParameters: List<KaTypeParameterSymbol>
+    get() = try {
+        @OptIn(KaExperimentalApi::class)
+        typeParameters
+    } catch (_: LinkageError) {
+        emptyList()
+    }
 
 class NamedFunctionKDocGenerator(private val function: KtNamedFunction) : KDocGenerator {
     override fun generate(): String {
@@ -27,15 +29,21 @@ class NamedFunctionKDocGenerator(private val function: KtNamedFunction) : KDocGe
         builder.appendLine("/**")
                 .appendLine("* TODO")
                 .appendLine("*")
-        if (function.typeParameters.isNotEmpty()) {
-            builder.appendLine(toParamsKdoc(params = function.typeParameters))
-        }
-        if (function.valueParameters.isNotEmpty()) {
-            builder.appendLine(toParamsKdoc(params = function.valueParameters))
-        }
+        analyze(function) {
+            val symbol = function.symbol
 
-        if (function.type()?.isUnit() == false) {
-            builder.appendLine("* @return")
+            val typeParameters = symbol.safeTypeParameters
+            if (typeParameters.isNotEmpty()) {
+                builder.appendLine(toParamsKdoc(params = typeParameters))
+            }
+
+            if (symbol.valueParameters.isNotEmpty()) {
+                builder.appendLine(toParamsKdoc(params = symbol.valueParameters))
+            }
+
+            if (!symbol.returnType.isUnitType) {
+                builder.appendLine("* @return")
+            }
         }
         builder.appendLine("*/")
         return builder.toString()
@@ -49,23 +57,34 @@ class ClassKDocGenerator(private val klass: KtClass) : KDocGenerator {
                 .appendLine("* TODO")
                 .appendLine("*")
 
-        if (klass.typeParameters.isNotEmpty()) {
-            builder.appendLine(toParamsKdoc(params = klass.typeParameters))
-        }
+        analyze(klass) {
+            val symbol = klass.classSymbol ?: return@analyze
+            val typeParameters = symbol.safeTypeParameters
+            if (typeParameters.isNotEmpty()) {
+                builder.appendLine(toParamsKdoc(params = typeParameters))
+            }
 
-        val (properties, parameters) = klass.primaryConstructor?.valueParameters?.partition {
-            it.hasValOrVar()
-        } ?: Pair(emptyList(), emptyList())
-        
-        if (properties.isNotEmpty()) {
-            builder.appendLine(toParamsKdoc(keyword = "@property", params = properties))
-        }
-        
-        if (parameters.isNotEmpty()) {
-            builder.appendLine("* @constructor")
+            val declaredMemberScope = symbol.declaredMemberScope
+            val properties = declaredMemberScope.callables
+                .filterIsInstance<KaPropertySymbol>()
+                .filter { it.isFromPrimaryConstructor }
+                .toList()
+            val parameters = declaredMemberScope.constructors
+                .singleOrNull { it.isPrimary }
+                ?.valueParameters
+                .orEmpty()
+                .filter { properties.none { p -> p.name == it.name} }
+
+            if (properties.isNotEmpty()) {
+                builder.appendLine(toParamsKdoc(keyword = "@property", params = properties))
+            }
+
+            if (parameters.isNotEmpty()) {
+                builder.appendLine("* @constructor")
                     .appendLine("* TODO")
                     .appendLine("*")
                     .appendLine(toParamsKdoc(params = parameters))
+            }
         }
         
         builder.appendLine("*/")

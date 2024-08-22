@@ -1,19 +1,26 @@
 package siosio.kodkod
 
-import com.intellij.codeInsight.*
-import com.intellij.codeInsight.editorActions.enter.*
-import com.intellij.openapi.actionSystem.*
-import com.intellij.openapi.application.*
-import com.intellij.openapi.editor.*
-import com.intellij.psi.*
-import com.intellij.psi.codeStyle.*
-import com.intellij.psi.util.*
-import com.intellij.util.text.*
-import org.jetbrains.kotlin.idea.kdoc.*
-import org.jetbrains.kotlin.kdoc.psi.api.*
-import org.jetbrains.kotlin.kdoc.psi.impl.*
-import org.jetbrains.kotlin.psi.*
-import org.jetbrains.kotlin.psi.psiUtil.*
+import com.intellij.codeInsight.CodeInsightSettings
+import com.intellij.codeInsight.editorActions.enter.EnterHandlerDelegate
+import com.intellij.codeInsight.editorActions.enter.EnterHandlerDelegateAdapter
+import com.intellij.openapi.actionSystem.DataContext
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.application.runInEdt
+import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.command.WriteCommandAction
+import com.intellij.openapi.editor.Editor
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiFile
+import com.intellij.psi.codeStyle.CodeStyleManager
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.util.text.CharArrayUtil
+import org.jetbrains.kotlin.idea.kdoc.KDocElementFactory
+import org.jetbrains.kotlin.kdoc.psi.api.KDoc
+import org.jetbrains.kotlin.kdoc.psi.impl.KDocSection
+import org.jetbrains.kotlin.psi.KtClass
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.KtNamedFunction
+import org.jetbrains.kotlin.psi.psiUtil.getChildOfType
 
 class EnterAfterKDocGenHandler : EnterHandlerDelegateAdapter() {
 
@@ -43,23 +50,29 @@ class EnterAfterKDocGenHandler : EnterHandlerDelegateAdapter() {
             return EnterHandlerDelegate.Result.Continue
         }
 
-        ApplicationManager.getApplication().runWriteAction {
-            val kDocElementFactory = KDocElementFactory(project)
-
-            val parent = kdoc.parent
-            when (parent) {
-                is KtNamedFunction -> NamedFunctionKDocGenerator(parent)
-                is KtClass -> ClassKDocGenerator(parent)
-                else -> null
-            }?.generate()
-            ?.let {
-                kDocElementFactory.createKDocFromText(it)
-                        .let { kdoc.replace(it) }
-                        .let { CodeStyleManager.getInstance(project).reformat(it) }
-            }?.let {
-                it.getChildOfType<KDocSection>()?.let {
-                    caretModel.moveToOffset(it.textOffset + 6)
-                }
+        val kDocElementFactory = KDocElementFactory(project)
+        val parent = kdoc.parent
+        val kDocGenerator = when (parent) {
+            is KtNamedFunction -> NamedFunctionKDocGenerator(parent)
+            is KtClass -> ClassKDocGenerator(parent)
+            else -> null
+        }
+        val application = ApplicationManager.getApplication()
+        application.executeOnPooledThread {
+            val newKdocText = runReadAction {
+                kDocGenerator?.generate()!!
+            }
+            runInEdt {
+                WriteCommandAction
+                    .writeCommandAction(project)
+                    .withName("Generate KDoc")
+                    .run<Throwable> {
+                        val newKdoc = kDocElementFactory.createKDocFromText(newKdocText)
+                        val replaced = kdoc.replace(newKdoc)
+                        val reformatted = CodeStyleManager.getInstance(project).reformat(replaced)
+                        reformatted.getChildOfType<KDocSection>()
+                            ?.let { caretModel.moveToOffset(it.textOffset + 6) }
+                    }
             }
         }
         return EnterHandlerDelegate.Result.Continue
