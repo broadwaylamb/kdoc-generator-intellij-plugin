@@ -1,13 +1,9 @@
 package siosio.kodkod
 
 import com.intellij.psi.PsiNameIdentifierOwner
-import org.jetbrains.kotlin.idea.debugger.sequence.psi.resolveType
-import org.jetbrains.kotlin.idea.refactoring.changeSignature.getDeclarationBody
 import org.jetbrains.kotlin.nj2k.postProcessing.type
 import org.jetbrains.kotlin.psi.KtClass
-import org.jetbrains.kotlin.psi.KtNamedDeclarationUtil
 import org.jetbrains.kotlin.psi.KtNamedFunction
-import org.jetbrains.kotlin.psi.KtPsiUtil
 import org.jetbrains.kotlin.types.typeUtil.isUnit
 
 interface KDocGenerator {
