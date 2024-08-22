@@ -1,5 +1,5 @@
 buildscript {
-  ext.kotlin_version = '1.5.31'
+  ext.kotlin_version = '2.0.10'
 
   repositories {
     mavenCentral()
@@ -10,7 +10,7 @@ buildscript {
 }
 
 plugins {
-  id 'org.jetbrains.intellij' version '1.2.0'
+  id 'org.jetbrains.intellij' version '1.17.4'
 }
 
 group 'siosio'
@@ -33,6 +33,7 @@ compileTestKotlin {
   kotlinOptions.jvmTarget = "1.8"
 }
 intellij {
+  version = '2024.1'
   plugins = ['Kotlin', 'java']
   type = 'IC'
 }
