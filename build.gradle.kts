@@ -1,9 +1,6 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
   kotlin("jvm") version "2.0.10"
-  id("org.jetbrains.intellij") version "1.17.4"
+  id("org.jetbrains.intellij.platform") version "2.0.1"
 }
 
 group = "siosio"
@@ -11,25 +8,25 @@ version = "2.0.4"
 
 repositories {
   mavenCentral()
-}
-
-intellij {
-  version.set("2024.1")
-  plugins.set(listOf("Kotlin", "java"))
-  type.set("IC")
-}
-
-tasks {
-  withType<JavaCompile> {
-    sourceCompatibility = "1.8"
-    targetCompatibility = "1.8"
+  intellijPlatform {
+    defaultRepositories()
   }
-  withType<KotlinCompile> {
-    compilerOptions {
-      jvmTarget.set(JvmTarget.JVM_1_8)
+}
+
+dependencies {
+  intellijPlatform {
+    intellijIdeaCommunity("242.21829.15")
+    bundledPlugins("com.intellij.java", "org.jetbrains.kotlin")
+
+    pluginVerifier()
+    instrumentationTools()
+  }
+}
+
+intellijPlatform {
+  pluginConfiguration {
+    ideaVersion {
+      sinceBuild = "223"
     }
-  }
-  patchPluginXml {
-    sinceBuild.set("202")
   }
 }
