@@ -1,0 +1,5 @@
+/**
+ * TODO<caret>
+ *
+ */
+class A {}
